@@ -50,3 +50,9 @@ m4/lt~obsolete.m4
 # can automatically generate from config.status script
 # (which is called by configure script))
 Makefile
+libtool
+*.o
+diyafm
+data/gschemas.compiled
+data/app.iohub.dev.diyafm.gschema.valid
+resources.c
