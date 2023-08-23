@@ -8,6 +8,6 @@
 G_DECLARE_FINAL_TYPE(DiyafmWindow, diyafm_window, DIYAFM, WINDOW, GtkApplicationWindow)
 
 DiyafmWindow *diyafm_window_new(DiyafmApp *app);
-void diyafm_window_open(DiyafmWindow *win,GFile *file, gboolean active);
+void diyafm_window_open(DiyafmWindow *win,GFile *file);
 
 #endif

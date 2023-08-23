@@ -12,6 +12,8 @@ diyafm_SOURCES = fm.c \
 	diyafm_win.c \
 	diyafm_prefs.c \
 	diyafm_app.h \
+	diyafm_file_view.c \
+	diyafm_file_view.h \
 	diyafm_win.h \
 	diyafm_prefs.h \
 	resources.c
@@ -23,7 +25,12 @@ BUILT_SOURCES = \
 	gschemas.compiled
 
 
-resources.c: diyafm.gresource.xml resources/fm.ui resources/app-menu.ui resources/prefs.ui resources/gears-menu.ui
+resources.c: diyafm.gresource.xml \
+			resources/diyafm.ui \
+			resources/prefs.ui \
+			resources/gears-menu.ui \
+			resources/file-entry.ui \
+			resources/file-view.ui
 	glib-compile-resources $(srcdir)/diyafm.gresource.xml \
 		--target=$@ --sourcedir=$(srcdir) --generate-source
 
