@@ -7,5 +7,7 @@
         <file preprocess="xml-stripblanks">resources/file-entry.ui</file>
         <file preprocess="xml-stripblanks">resources/gears-menu.ui</file>
         <file preprocess="xml-stripblanks">resources/prefs.ui</file>
+        <file preprocess="xml-stripblanks">resources/noti-msg.ui</file>
+        <file>resources/main.css</file>
     </gresource>
 </gresources>
