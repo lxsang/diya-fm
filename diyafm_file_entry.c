@@ -26,7 +26,6 @@ struct _DiyafmFileEntry
 enum
 {
     PROP_FILE=1,
-    PROP_FILE_VIEW,
     PROP_FILE_NAME,
     PROP_FILE_SIZE,
     PROP_FILE_TYPE,
@@ -98,9 +97,6 @@ static void diyafm_file_entry_set_property(GObject *obj, guint property_id, cons
             g_object_unref(info);
         }
         break;
-    case PROP_FILE_VIEW:
-        self->file_view = g_value_get_object(value);
-        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(obj, property_id, pspec);
         break;
@@ -115,9 +111,6 @@ static void diyafm_file_entry_get_property(GObject *obj, guint property_id, GVal
     {
     case PROP_FILE:
         g_value_set_object(value, self->file);
-        break;
-    case PROP_FILE_VIEW:
-        g_value_set_object(value, self->file_view);
         break;
     case PROP_FILE_SIZE:
         g_value_set_uint64(value, self->size);
@@ -148,31 +141,17 @@ static void diyafm_file_entry_dispose(GObject *obj)
     G_OBJECT_CLASS(diyafm_file_entry_parent_class)->dispose(obj);
 }
 
+/*
 static gboolean diyafm_file_entry_button_press_event_cb(GtkWidget *widget, GdkEventButton *event, gpointer user_data)
 {
     DiyafmFileEntry *self = DIYAFM_FILE_ENTRY(widget);
     if(event->type == GDK_DOUBLE_BUTTON_PRESS)
     {
-        char * path = g_file_get_path(self->file);
-        GFileType type = g_file_query_file_type (self->file,G_FILE_QUERY_INFO_NONE,NULL);
-
-        if(type == G_FILE_TYPE_DIRECTORY)
-        {
-            g_object_set(G_OBJECT(self->file_view), "dir", self->file ,NULL);
-        }
-        else
-        {
-            // TODO error handle for the case G_FILE_TYPE_UNKNOWN, file does not exists
-            diyafm_notify(widget, DEFAULT_MSG_TO, "Open file: %s", path);
-        }
-        if(path)
-        {
-            g_free(path);
-        }
         return TRUE;
     }
     return FALSE;
 }
+*/
 
 static void diyafm_file_entry_class_init(DiyafmFileEntryClass *class)
 {
@@ -181,8 +160,6 @@ static void diyafm_file_entry_class_init(DiyafmFileEntryClass *class)
     gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(class), DiyafmFileEntry, lbl_file);
     gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(class), DiyafmFileEntry, lbl_date);
     gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(class), DiyafmFileEntry, lbl_size);
-    
-    gtk_widget_class_bind_template_callback(GTK_WIDGET_CLASS(class), diyafm_file_entry_button_press_event_cb);
 
     G_OBJECT_CLASS(class)->dispose = diyafm_file_entry_dispose;
     G_OBJECT_CLASS(class)->set_property = diyafm_file_entry_set_property;
@@ -215,18 +192,11 @@ static void diyafm_file_entry_class_init(DiyafmFileEntryClass *class)
                             "File size in bytes",
                             0,UINT64_MAX,0,
                             G_PARAM_READABLE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
-
-    properties[PROP_FILE_VIEW] =
-        g_param_spec_object( "file-view",
-                            "Parent file view",
-                            "File view associated to this entry",
-                            DIYAFM_FILE_VIEW_TYPE,
-                            G_PARAM_READWRITE |G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
     
     g_object_class_install_properties(G_OBJECT_CLASS(class), NUM_PROPERTIES, properties);
 }
 
-DiyafmFileEntry *diyafm_file_entry_new(GFile *file, GtkWidget* fileview)
+DiyafmFileEntry *diyafm_file_entry_new(GFile *file)
 {
     if(!file)
         return NULL;
@@ -241,6 +211,5 @@ DiyafmFileEntry *diyafm_file_entry_new(GFile *file, GtkWidget* fileview)
 
     return g_object_new(DIYAFM_FILE_ENTRY_TYPE,
                 "file", file,
-                "file-view", G_OBJECT(fileview),
             NULL);
 }

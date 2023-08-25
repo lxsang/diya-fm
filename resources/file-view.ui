@@ -125,6 +125,7 @@
                 <property name="can_focus">True</property>
                 <property name="selection_mode">multiple</property>
                 <property name="activate_on_single_click">False</property>
+                <signal name="row-activated" handler="diyafm_file_view_row_active_cb" object="DiyafmFileView" swapped="yes"/>
               </object>
             </child>
           </object>
