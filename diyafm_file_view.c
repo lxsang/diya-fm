@@ -21,16 +21,8 @@ struct _DiyafmFileView
     gchar *sort;
     GFile *dir;
 
-    // task handling
     GAsyncQueue *task_queue;
-    GCancellable *cancellable;
 };
-
-typedef struct  {
-    GFile *dir;
-    GFileEnumerator *enumerator;
-    GAsyncQueue *queue;
-} FileViewDirTaskData;
 
 enum
 {
@@ -92,7 +84,7 @@ static void diyafm_file_view_init(DiyafmFileView *view)
                            view->searchbar, "search-mode-enabled",
                            G_BINDING_BIDIRECTIONAL);
     view->task_queue = g_async_queue_new();
-    view->cancellable = NULL;
+
     builder = gtk_builder_new_from_resource("/app/iohub/dev/diyafm/resources/file-view-opts.ui");
     menu = G_MENU_MODEL(gtk_builder_get_object(builder, "menu"));
     gtk_menu_button_set_menu_model(GTK_MENU_BUTTON(view->btn_opts), menu);
@@ -124,8 +116,6 @@ static void diyafm_file_view_dispose(GObject *object)
         g_object_unref(self->dir);
     }
     g_async_queue_unref(self->task_queue);
-    if(self->cancellable)
-        g_object_unref(self->cancellable);
     G_OBJECT_CLASS(diyafm_file_view_parent_class)->dispose(object);
 }
 
@@ -138,98 +128,69 @@ static gboolean diyafm_idle_file_entry_rendering(gpointer object)
 {
     DiyafmFileView *self = DIYAFM_FILE_VIEW(object);
     gint len = g_async_queue_length(self->task_queue);
-    if(len == 0 && g_cancellable_is_cancelled(self->cancellable))
+    if (len <= 0)
     {
         diyafm_loaded(GTK_WIDGET(self));
-        g_object_unref(self->cancellable);
-        self->cancellable = NULL;
-        printf("Finish rendering\n");
         return FALSE;
     }
-    /*if (len <= 0)
-    {
-        diyafm_loaded(GTK_WIDGET(self));
-        return FALSE;
-    }*/
     if (len > MAX_FILE_RENDER_PER_TICK)
     {
         len = MAX_FILE_RENDER_PER_TICK;
     }
     for (size_t i = 0; i < len; i++)
     {
-        GFile *file = g_async_queue_try_pop(self->task_queue);
-        DiyafmFileEntry *entry = diyafm_file_entry_new(file);
-        if (entry)
+        GFile *file = g_async_queue_pop(self->task_queue);
+        if (file)
         {
-             gtk_list_box_insert(GTK_LIST_BOX(self->file_list), GTK_WIDGET(entry), -1);
-        }
-        else
-        {
-            gchar *path = g_file_get_path(file);
-            diyafm_notify(GTK_WIDGET(self),DEFAULT_MSG_TO, "Invalid file: %s", path);
-            g_free(path);
+            DiyafmFileEntry *entry = diyafm_file_entry_new(file);
+            if (entry)
+            {
+                gtk_list_box_insert(GTK_LIST_BOX(self->file_list), GTK_WIDGET(entry), -1);
+            }
+            else
+            {
+                gchar *basename = basename = g_file_get_basename(file);
+                diyafm_notify(GTK_WIDGET(self), DEFAULT_MSG_TO, "Invalid file: %s", basename);
+                g_free(basename);
+            }
         }
     }
     return TRUE;
 }
 
-static void diyafm_file_view_entry_creation_thread(GTask *task, gpointer object,gpointer task_data, GCancellable *cancellable)
+static void diyafm_file_enum_cb(GObject *object, GAsyncResult *res, gpointer user_data)
 {
-    FileViewDirTaskData *data = (FileViewDirTaskData*) task_data;
-    gboolean ret;
-    GFileInfo *info;
-    while (TRUE)
-    {
-        if(g_cancellable_is_cancelled(cancellable))
-        {
-            printf("Dir listing cancelled\n");
-            break;
-        }
-        ret = g_file_enumerator_iterate(data->enumerator, &info, NULL, NULL, NULL);
-        if (info)
-        {
-            const gchar *name = g_file_info_get_name(info);
-            GFile *file = g_file_get_child(data->dir, name);
-            g_async_queue_push(data->queue, file);
-        }
-        else
-        {
-            break;
-        }
-    }
-    printf("Dir listing task finished\n");
-    g_object_unref(data->enumerator);
-    g_object_unref(data->dir);
-    if(!g_cancellable_is_cancelled(cancellable))
-    {
-        g_cancellable_cancel(cancellable);
-    }
-}
-
-static void diyafm_file_enum_cb_async(GObject *object, GAsyncResult *res, gpointer user_data)
-{
-
     GError *error = NULL;
+    GFileInfo *info;
+    gboolean ret;
     DiyafmFileView *self = DIYAFM_FILE_VIEW(user_data);
     GFileEnumerator *enumerator = g_file_enumerate_children_finish(self->dir, res, &error);
+    if (enumerator)
+    {
+        while (TRUE)
+        {
+            ret = g_file_enumerator_iterate(enumerator, &info, NULL, NULL, &error);
+            if (info)
+            {
+                const gchar *name = g_file_info_get_name(info);
+                GFile *file = g_file_get_child(self->dir, name);
+                g_async_queue_push(self->task_queue, file);
+            }
+            else
+            {
+                break;
+            }
+        }
+        g_object_unref(enumerator);
+        // add idle task for rendering listbox
+        (void)g_idle_add(diyafm_idle_file_entry_rendering, self);
+    }
     if (error && error->code)
     {
         gchar *path = g_file_get_path(self->dir);
         diyafm_notify(GTK_WIDGET(self), DEFAULT_MSG_TO, "Error reading directory: %s\n%s", path, error->message);
         g_free(path);
-        return;
     }
-    FileViewDirTaskData *task_data = g_malloc(sizeof(FileViewDirTaskData));
-    task_data->dir = g_object_ref(self->dir);
-    task_data->enumerator = enumerator;
-    task_data->queue = self->task_queue;
-    self->cancellable = g_cancellable_new();
-    GTask *task = g_task_new(self, self->cancellable, NULL, NULL);
-    g_task_set_task_data(task, task_data, (GDestroyNotify)g_free);
-    g_task_run_in_thread(task, diyafm_file_view_entry_creation_thread);
-    g_object_unref(task);
-    // add idle task for rendering listbox
-    (void)g_idle_add(diyafm_idle_file_entry_rendering, self);
 }
 
 static void diyafm_refresh_view(DiyafmFileView *self)
@@ -256,8 +217,7 @@ static void diyafm_refresh_view(DiyafmFileView *self)
          * is pending
          *
          */
-        // trigger the cancellable
-        g_cancellable_cancel(self->cancellable);
+        diyafm_loaded(GTK_WIDGET(self));
     }
 
     gchar *path = g_file_get_path(self->dir);
@@ -279,7 +239,7 @@ static void diyafm_refresh_view(DiyafmFileView *self)
                                     G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
                                     G_PRIORITY_LOW,
                                     NULL,
-                                    diyafm_file_enum_cb_async,
+                                    diyafm_file_enum_cb,
                                     self);
 }
 
@@ -474,9 +434,9 @@ static void diyafm_file_view_btn_up_cb(GObject *object, GParamSpec *pspec)
 static void diyafm_file_view_row_active_cb(gpointer object, GtkListBoxRow *row, GtkListBox *box)
 {
     DiyafmFileView *self = DIYAFM_FILE_VIEW(object);
-    GFile *file;
+    GFile * file;
     g_object_get(row, "file", &file, NULL);
-
+    
     GFileType type = g_file_query_file_type(file, G_FILE_QUERY_INFO_NONE, NULL);
 
     if (type == G_FILE_TYPE_DIRECTORY)
