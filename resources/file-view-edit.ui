@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<interface>
+    <!-- interface-requires gtk+ 3.0 -->
+    <menu id="menu">
+        <section>
+            <item>
+                <attribute name="label" translatable="yes">_New file</attribute>
+                <attribute name="action">fileview.newfile</attribute>
+            </item>
+            <item>
+                <attribute name="label" translatable="yes">_New folder</attribute>
+                <attribute name="action">fileview.newfolder</attribute>
+            </item>
+            <item>
+                <attribute name="label" translatable="yes">_Delete</attribute>
+                <attribute name="action">fileview.delete</attribute>
+            </item>
+            <item>
+                <attribute name="label" translatable="yes">_Rename</attribute>
+                <attribute name="action">fileview.rename</attribute>
+            </item>
+        </section>
+    </menu>
+</interface>

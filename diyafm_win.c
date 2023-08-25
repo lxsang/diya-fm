@@ -27,7 +27,7 @@ struct _DiyafmWindowPrivate
     DiyafmFileView *file_view_left;
     DiyafmFileView *file_view_right;
 
-    guint loading_count;
+    gint loading_count;
 };
 G_DEFINE_TYPE_WITH_PRIVATE(DiyafmWindow, diyafm_window, GTK_TYPE_APPLICATION_WINDOW);
 
@@ -88,7 +88,7 @@ static void diyafm_window_init(DiyafmWindow *win)
 
     g_action_map_add_action_entries(G_ACTION_MAP(win), win_action_entries, G_N_ELEMENTS(win_action_entries), win);
 
-    gtk_widget_add_events(GTK_WIDGET(win), GDK_BUTTON_PRESS_MASK);
+    //gtk_widget_add_events(GTK_WIDGET(win), GDK_BUTTON_PRESS_MASK);
 
     //load css
     GtkCssProvider  *style_provider = gtk_css_provider_new();
@@ -190,10 +190,12 @@ void diyafm_loading(GtkWidget * widget)
 void diyafm_loaded(GtkWidget * widget)
 {
     GtkWidget * view = gtk_widget_get_toplevel(widget);
+    
     if (!gtk_widget_is_toplevel (GTK_WIDGET(view)))
     {
         return;
     }
+
     DiyafmWindow *win = DIYAFM_WINDOW(view);
     
     DiyafmWindowPrivate *priv = diyafm_window_get_instance_private(win);

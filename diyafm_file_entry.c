@@ -18,12 +18,18 @@ struct _DiyafmFileEntry
     // properties
     GFile* file;
     GtkWidget *file_view;
+    guint type;
+    guint64 size;
+    gchar* name;
 };
 
 enum
 {
     PROP_FILE=1,
     PROP_FILE_VIEW,
+    PROP_FILE_NAME,
+    PROP_FILE_SIZE,
+    PROP_FILE_TYPE,
     NUM_PROPERTIES,
 };
 
@@ -53,17 +59,21 @@ static void diyafm_file_entry_set_property(GObject *obj, guint property_id, cons
         {
             g_object_unref(self->file);
         }
+        if(self->name)
+        {
+            g_free(self->name);
+        }
         self->file = g_value_get_object(value);
-        gchar *basename;
-        basename = g_file_get_basename(self->file);
-        gtk_label_set_text(GTK_LABEL(self->lbl_file), basename);
-        g_free(basename);
+        self->name = g_file_get_basename(self->file);
+        gtk_label_set_text(GTK_LABEL(self->lbl_file), self->name);
         GError * error;
         GFileType type = g_file_query_file_type (self->file,G_FILE_QUERY_INFO_NONE,NULL);
         // change ICON
+        self->type = TYPE_FILE;
         if(type == G_FILE_TYPE_DIRECTORY)
         {
             gtk_image_set_from_icon_name(GTK_IMAGE(self->file_icon), "gtk-directory", GTK_ICON_SIZE_DIALOG);
+            self->type = TYPE_DIR;
         }
         // get size and modified date
         gtk_widget_set_visible (GTK_WIDGET(self->lbl_date),FALSE);
@@ -71,8 +81,8 @@ static void diyafm_file_entry_set_property(GObject *obj, guint property_id, cons
         GFileInfo *info = g_file_query_info (self->file,"standard::*,time::*",G_FILE_QUERY_INFO_NONE,NULL,&error);
         if(info)
         {
-            goffset size = g_file_info_get_size (info);
-            snprintf(tmp, sizeof(tmp), "%"PRIu64" Kb", size);
+            self->size  = g_file_info_get_size (info);
+            snprintf(tmp, sizeof(tmp), "%"PRIu64" Kb", self->size);
             gtk_widget_set_visible (GTK_WIDGET(self->lbl_size),TRUE);
             gtk_label_set_text(GTK_LABEL(self->lbl_size), tmp);
 
@@ -109,6 +119,15 @@ static void diyafm_file_entry_get_property(GObject *obj, guint property_id, GVal
     case PROP_FILE_VIEW:
         g_value_set_object(value, self->file_view);
         break;
+    case PROP_FILE_SIZE:
+        g_value_set_uint64(value, self->size);
+        break;
+    case PROP_FILE_TYPE:
+        g_value_set_uint(value, self->type);
+        break;
+    case PROP_FILE_NAME:
+        g_value_set_string(value, self->name);
+        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(obj, property_id, pspec);
         break;
@@ -121,6 +140,10 @@ static void diyafm_file_entry_dispose(GObject *obj)
     /*if (self->file && G_IS_OBJECT(self->file))
     {
         g_object_unref(self->file);
+    }*/
+    /*if(self->name)
+    {
+        g_free(self->name);
     }*/
     G_OBJECT_CLASS(diyafm_file_entry_parent_class)->dispose(obj);
 }
@@ -171,6 +194,27 @@ static void diyafm_file_entry_class_init(DiyafmFileEntryClass *class)
                             "Get current GFile object",
                             G_TYPE_OBJECT,
                             G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
+
+    properties[PROP_FILE_NAME] =
+        g_param_spec_string( "file-name",
+                            "File name",
+                            "Basename of current file",
+                            NULL,
+                            G_PARAM_READABLE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
+    
+    properties[PROP_FILE_TYPE] =
+        g_param_spec_uint( "file-type",
+                            "File type",
+                            "File type: 0 for dir and 1 for file",
+                            0,1,1,
+                            G_PARAM_READABLE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
+    
+    properties[PROP_FILE_SIZE] =
+        g_param_spec_uint64( "file-size",
+                            "File size",
+                            "File size in bytes",
+                            0,UINT64_MAX,0,
+                            G_PARAM_READABLE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
 
     properties[PROP_FILE_VIEW] =
         g_param_spec_object( "file-view",

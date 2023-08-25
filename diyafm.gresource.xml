@@ -5,6 +5,8 @@
         <file preprocess="xml-stripblanks">resources/diyafm.ui</file>
         <file preprocess="xml-stripblanks">resources/file-view.ui</file>
         <file preprocess="xml-stripblanks">resources/file-entry.ui</file>
+        <file preprocess="xml-stripblanks">resources/file-view-opts.ui</file>
+        <file preprocess="xml-stripblanks">resources/file-view-edit.ui</file>
         <file preprocess="xml-stripblanks">resources/gears-menu.ui</file>
         <file preprocess="xml-stripblanks">resources/prefs.ui</file>
         <file preprocess="xml-stripblanks">resources/noti-msg.ui</file>

@@ -37,6 +37,8 @@ resources.c: diyafm.gresource.xml \
 			resources/gears-menu.ui \
 			resources/file-entry.ui \
 			resources/file-view.ui \
+			resources/file-view-opts.ui \
+			resources/file-view-edit.ui \
 			resources/noti-msg.ui \
 			resources/main.css
 	glib-compile-resources $(srcdir)/diyafm.gresource.xml \

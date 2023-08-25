@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<interface>
+    <!-- interface-requires gtk+ 3.0 -->
+    <menu id="menu">
+        <section>
+            <item>
+                <attribute name="label" translatable="yes">_Refresh</attribute>
+                <attribute name="action">fileview.refresh</attribute>
+            </item>
+            <item>
+                <attribute name="label" translatable="yes">_Info</attribute>
+                <attribute name="action">fileview.fileinfo</attribute>
+            </item>
+            <item>
+                <attribute name="label" translatable="yes">_Show hidden</attribute>
+                <attribute name="action">fileview.show-hidden</attribute>
+            </item>
+        </section>
+        <section>
+            <item>
+                <attribute name="label" translatable="yes">_Sort by name</attribute>
+                <attribute name="action">fileview.sort</attribute>
+                <attribute name="target">name</attribute>
+            </item>
+            <item>
+                <attribute name="label" translatable="yes">_Sort by size</attribute>
+                <attribute name="action">fileview.sort</attribute>
+                <attribute name="target">size</attribute>
+            </item>
+            <item>
+                <attribute name="label" translatable="yes">_Sort by type</attribute>
+                <attribute name="action">fileview.sort</attribute>
+                <attribute name="target">type</attribute>
+            </item>
+        </section>
+    </menu>
+</interface>
