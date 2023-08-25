@@ -139,7 +139,7 @@ static gboolean diyafm_idle_file_entry_rendering(gpointer object)
     }
     for (size_t i = 0; i < len; i++)
     {
-        GFile *file = g_async_queue_pop(self->task_queue);
+        GFile *file = g_async_queue_try_pop(self->task_queue);
         if (file)
         {
             DiyafmFileEntry *entry = diyafm_file_entry_new(file);
@@ -183,7 +183,7 @@ static void diyafm_file_enum_cb(GObject *object, GAsyncResult *res, gpointer use
         }
         g_object_unref(enumerator);
         // add idle task for rendering listbox
-        (void)g_idle_add(diyafm_idle_file_entry_rendering, self);
+        (void)g_idle_add_full(G_PRIORITY_DEFAULT_IDLE,diyafm_idle_file_entry_rendering, self,NULL);
     }
     if (error && error->code)
     {
@@ -206,7 +206,7 @@ static void diyafm_refresh_view(DiyafmFileView *self)
     {
         for (size_t i = 0; i < len; i++)
         {
-            GFile *file = g_async_queue_pop(self->task_queue);
+            GFile *file = g_async_queue_try_pop(self->task_queue);
             if (file)
             {
                 g_object_unref(file);
