@@ -49,8 +49,7 @@ static void quit_activated(GSimpleAction *action, GVariant *parameter, gpointer 
 static GActionEntry win_action_entries[] =
     {
         {"preferences", preferences_activated, NULL, NULL, NULL},
-        {"quit", quit_activated, NULL, NULL, NULL}
-    };
+        {"quit", quit_activated, NULL, NULL, NULL}};
 
 static void diyafm_window_init(DiyafmWindow *win)
 {
@@ -71,11 +70,17 @@ static void diyafm_window_init(DiyafmWindow *win)
     gtk_box_pack_start(GTK_BOX(priv->content_box), GTK_WIDGET(priv->file_view_left), TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(priv->content_box), GTK_WIDGET(priv->file_view_right), TRUE, TRUE, 0);
 
-    //gtk_box_set_child_packing(GTK_BOX(priv->content_box),GTK_WIDGET(priv->file_view_left),TRUE,TRUE,0,GTK_PACK_START);
-    //gtk_box_set_child_packing(GTK_BOX(priv->content_box),GTK_WIDGET(priv->file_view_right),TRUE,TRUE,0,GTK_PACK_START);
+    // gtk_box_set_child_packing(GTK_BOX(priv->content_box),GTK_WIDGET(priv->file_view_left),TRUE,TRUE,0,GTK_PACK_START);
+    // gtk_box_set_child_packing(GTK_BOX(priv->content_box),GTK_WIDGET(priv->file_view_right),TRUE,TRUE,0,GTK_PACK_START);
 
-    g_object_set(priv->file_view_left, "dir", g_file_new_for_path("/home/dany"), NULL);
-    g_object_set(priv->file_view_right, "dir", g_file_new_for_path("/home/dany"), NULL);
+    // TODO use setting
+    const gchar *home = g_getenv("HOME");
+    if (!home)
+    {
+        home = "/home";
+    }
+    g_object_set(priv->file_view_left, "dir", g_file_new_for_path(home), NULL);
+    g_object_set(priv->file_view_right, "dir", g_file_new_for_path(home), NULL);
 
     builder = gtk_builder_new_from_resource("/app/iohub/dev/diyafm/resources/gears-menu.ui");
     menu = G_MENU_MODEL(gtk_builder_get_object(builder, "menu"));
@@ -88,14 +93,13 @@ static void diyafm_window_init(DiyafmWindow *win)
 
     g_action_map_add_action_entries(G_ACTION_MAP(win), win_action_entries, G_N_ELEMENTS(win_action_entries), win);
 
-    //gtk_widget_add_events(GTK_WIDGET(win), GDK_BUTTON_PRESS_MASK);
+    // gtk_widget_add_events(GTK_WIDGET(win), GDK_BUTTON_PRESS_MASK);
 
-    //load css
-    GtkCssProvider  *style_provider = gtk_css_provider_new();
+    // load css
+    GtkCssProvider *style_provider = gtk_css_provider_new();
     gtk_css_provider_load_from_resource(style_provider, "/app/iohub/dev/diyafm/resources/main.css");
-    //gtk_style_context_add_provider(gtk_widget_get_style_context(GTK_WIDGET(win)), GTK_STYLE_PROVIDER(style_provider), GTK_STYLE_PROVIDER_PRIORITY_USER);
+    // gtk_style_context_add_provider(gtk_widget_get_style_context(GTK_WIDGET(win)), GTK_STYLE_PROVIDER(style_provider), GTK_STYLE_PROVIDER_PRIORITY_USER);
     gtk_style_context_add_provider(gtk_widget_get_style_context(GTK_WIDGET(priv->noti_box)), GTK_STYLE_PROVIDER(style_provider), GTK_STYLE_PROVIDER_PRIORITY_USER);
-    
 }
 
 static void diyafm_window_dispose(GObject *object)
@@ -122,7 +126,7 @@ static void diyafm_window_class_init(DiyafmWindowClass *class)
     gtk_widget_class_bind_template_child_private(GTK_WIDGET_CLASS(class), DiyafmWindow, content_box);
     gtk_widget_class_bind_template_child_private(GTK_WIDGET_CLASS(class), DiyafmWindow, spinner);
     // define custom signal
-    //g_signal_new("diyafm-loading", G_TYPE_OBJECT, G_SIGNAL_RUN_FIRST, 0, NULL, NULL, g_cclosure_marshal_VOID__POINTER, G_TYPE_NONE, 1, G_TYPE_POINTER);
+    // g_signal_new("diyafm-loading", G_TYPE_OBJECT, G_SIGNAL_RUN_FIRST, 0, NULL, NULL, g_cclosure_marshal_VOID__POINTER, G_TYPE_NONE, 1, G_TYPE_POINTER);
 }
 
 DiyafmWindow *diyafm_window_new(DiyafmApp *app)
@@ -139,11 +143,10 @@ void diyafm_window_open(DiyafmWindow *win, GFile *file)
     g_free(basename);
 }
 
-
-void diyafm_notify(GtkWidget * widget, guint timeout, gchar* fstring,...)
+void diyafm_notify(GtkWidget *widget, guint timeout, gchar *fstring, ...)
 {
-    GtkWidget * view = gtk_widget_get_toplevel(widget);
-    if (!gtk_widget_is_toplevel (GTK_WIDGET(view)))
+    GtkWidget *view = gtk_widget_get_toplevel(widget);
+    if (!gtk_widget_is_toplevel(GTK_WIDGET(view)))
     {
         return;
     }
@@ -161,7 +164,7 @@ void diyafm_notify(GtkWidget * widget, guint timeout, gchar* fstring,...)
         vsnprintf(msg, dlen, fstring, arguments);
         va_end(arguments);
         DiyafmWindow *win = DIYAFM_WINDOW(view);
-    
+
         DiyafmWindowPrivate *priv = diyafm_window_get_instance_private(win);
         g_object_set(priv->noti_revealer, "reveal-child", TRUE, NULL);
 
@@ -170,39 +173,38 @@ void diyafm_notify(GtkWidget * widget, guint timeout, gchar* fstring,...)
 
         g_free(msg);
     }
-
 }
 
-void diyafm_loading(GtkWidget * widget)
+void diyafm_loading(GtkWidget *widget)
 {
-    GtkWidget * view = gtk_widget_get_toplevel(widget);
-    if (!gtk_widget_is_toplevel (GTK_WIDGET(view)))
+    GtkWidget *view = gtk_widget_get_toplevel(widget);
+    if (!gtk_widget_is_toplevel(GTK_WIDGET(view)))
     {
         return;
     }
     DiyafmWindow *win = DIYAFM_WINDOW(view);
-    
+
     DiyafmWindowPrivate *priv = diyafm_window_get_instance_private(win);
     priv->loading_count++;
-    g_object_set(priv->spinner, "active",TRUE, NULL);
+    g_object_set(priv->spinner, "active", TRUE, NULL);
 }
 
-void diyafm_loaded(GtkWidget * widget)
+void diyafm_loaded(GtkWidget *widget)
 {
-    GtkWidget * view = gtk_widget_get_toplevel(widget);
-    
-    if (!gtk_widget_is_toplevel (GTK_WIDGET(view)))
+    GtkWidget *view = gtk_widget_get_toplevel(widget);
+
+    if (!gtk_widget_is_toplevel(GTK_WIDGET(view)))
     {
         return;
     }
 
     DiyafmWindow *win = DIYAFM_WINDOW(view);
-    
+
     DiyafmWindowPrivate *priv = diyafm_window_get_instance_private(win);
     priv->loading_count--;
-    if(priv->loading_count <= 0)
+    if (priv->loading_count <= 0)
     {
         priv->loading_count = 0;
-        g_object_set(priv->spinner, "active",FALSE, NULL);
+        g_object_set(priv->spinner, "active", FALSE, NULL);
     }
 }

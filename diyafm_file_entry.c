@@ -1,5 +1,5 @@
 #include <gtk/gtk.h>
-#include <stdint.h> 
+#include <stdint.h>
 #include <inttypes.h>
 
 #include "diyafm_file_entry.h"
@@ -16,25 +16,21 @@ struct _DiyafmFileEntry
     GtkWidget *lbl_size;
 
     // properties
-    GFile* file;
+    GFile *file;
     GtkWidget *file_view;
     guint type;
     guint64 size;
-    gchar* name;
+    gchar *name;
 };
 
 enum
 {
-    PROP_FILE=1,
+    PROP_FILE = 1,
     PROP_FILE_NAME,
     PROP_FILE_SIZE,
     PROP_FILE_TYPE,
+    PROP_FILE_IS_HIDDEN,
     NUM_PROPERTIES,
-};
-
-enum {
-    TYPE_DIR=0,
-    TYPE_FILE
 };
 
 static GParamSpec *properties[NUM_PROPERTIES];
@@ -58,41 +54,47 @@ static void diyafm_file_entry_set_property(GObject *obj, guint property_id, cons
         {
             g_object_unref(self->file);
         }
-        if(self->name)
+        if (self->name)
         {
             g_free(self->name);
         }
         self->file = g_value_get_object(value);
         self->name = g_file_get_basename(self->file);
         gtk_label_set_text(GTK_LABEL(self->lbl_file), self->name);
-        GError * error;
-        GFileType type = g_file_query_file_type (self->file,G_FILE_QUERY_INFO_NONE,NULL);
+        GError *error;
+        GFileType type = g_file_query_file_type(self->file, G_FILE_QUERY_INFO_NONE, NULL);
         // change ICON
-        self->type = TYPE_FILE;
-        if(type == G_FILE_TYPE_DIRECTORY)
+        self->type = FILE_ENTRY_TYPE_FILE;
+        if (type == G_FILE_TYPE_DIRECTORY)
         {
-            gtk_image_set_from_icon_name(GTK_IMAGE(self->file_icon), "gtk-directory", GTK_ICON_SIZE_DIALOG);
-            self->type = TYPE_DIR;
+            //gtk_image_set_from_stock(GTK_IMAGE(self->file_icon), "gtk-directory", GTK_ICON_SIZE_DIALOG);
+            gtk_image_set_from_icon_name(GTK_IMAGE(self->file_icon), "folder", GTK_ICON_SIZE_DIALOG);
+            gtk_image_set_pixel_size(GTK_IMAGE(self->file_icon), 48);
+            self->type = FILE_ENTRY_TYPE_DIR;
         }
         // get size and modified date
-        gtk_widget_set_visible (GTK_WIDGET(self->lbl_date),FALSE);
-        gtk_widget_set_visible (GTK_WIDGET(self->lbl_size),FALSE);
-        GFileInfo *info = g_file_query_info (self->file,"standard::*,time::*",G_FILE_QUERY_INFO_NONE,NULL,&error);
-        if(info)
+        gtk_widget_set_visible(GTK_WIDGET(self->lbl_date), FALSE);
+        gtk_widget_set_visible(GTK_WIDGET(self->lbl_size), FALSE);
+        GFileInfo *info = g_file_query_info(self->file, "standard::*,time::*", G_FILE_QUERY_INFO_NONE, NULL, &error);
+        if (info)
         {
-            self->size  = g_file_info_get_size (info);
-            snprintf(tmp, sizeof(tmp), "%"PRIu64" Kb", self->size);
-            gtk_widget_set_visible (GTK_WIDGET(self->lbl_size),TRUE);
-            gtk_label_set_text(GTK_LABEL(self->lbl_size), tmp);
+            self->size = g_file_info_get_size(info);
+            //if (self->type != FILE_ENTRY_TYPE_DIR)
+            {
+                gchar *size_s = diyafm_get_file_size_text(self->size);
+                gtk_widget_set_visible(GTK_WIDGET(self->lbl_size), TRUE);
+                gtk_label_set_text(GTK_LABEL(self->lbl_size), size_s);
+                g_free(size_s);
+            }
 
             GDateTime *mtime = g_file_info_get_modification_date_time(info);
-            if(mtime)
+            if (mtime)
             {
-                gint64 stamp = g_date_time_to_unix (mtime);
-                timestr(stamp,tmp,sizeof(tmp),"Modified: %a, %d %b %Y %H:%M:%S GMT",1);
+                gint64 stamp = g_date_time_to_unix(mtime);
+                timestr(stamp, tmp, sizeof(tmp), "Modified: %a, %d %b %Y %H:%M:%S GMT", 1);
                 gtk_label_set_text(GTK_LABEL(self->lbl_date), tmp);
-                gtk_widget_set_visible (GTK_WIDGET(self->lbl_date),TRUE);
-                //g_object_unref(mtime);
+                gtk_widget_set_visible(GTK_WIDGET(self->lbl_date), TRUE);
+                // g_object_unref(mtime);
             }
             g_object_unref(info);
         }
@@ -106,7 +108,7 @@ static void diyafm_file_entry_set_property(GObject *obj, guint property_id, cons
 static void diyafm_file_entry_get_property(GObject *obj, guint property_id, GValue *value, GParamSpec *pspec)
 {
     DiyafmFileEntry *self = DIYAFM_FILE_ENTRY(obj);
-    gchar* path;
+    gchar *path;
     switch (property_id)
     {
     case PROP_FILE:
@@ -120,6 +122,9 @@ static void diyafm_file_entry_get_property(GObject *obj, guint property_id, GVal
         break;
     case PROP_FILE_NAME:
         g_value_set_string(value, self->name);
+        break;
+    case PROP_FILE_IS_HIDDEN:
+        g_value_set_boolean(value, self->name[0] == '.');
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(obj, property_id, pspec);
@@ -166,50 +171,57 @@ static void diyafm_file_entry_class_init(DiyafmFileEntryClass *class)
     G_OBJECT_CLASS(class)->get_property = diyafm_file_entry_get_property;
 
     properties[PROP_FILE] =
-        g_param_spec_object( "file",
+        g_param_spec_object("file",
                             "GFile object",
                             "Get current GFile object",
                             G_TYPE_OBJECT,
                             G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
 
     properties[PROP_FILE_NAME] =
-        g_param_spec_string( "file-name",
+        g_param_spec_string("file-name",
                             "File name",
                             "Basename of current file",
                             NULL,
                             G_PARAM_READABLE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
-    
+
     properties[PROP_FILE_TYPE] =
-        g_param_spec_uint( "file-type",
-                            "File type",
-                            "File type: 0 for dir and 1 for file",
-                            0,1,1,
-                            G_PARAM_READABLE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
+        g_param_spec_uint("file-type",
+                          "File type",
+                          "File type: 0 for dir and 1 for file",
+                          0, 1, 1,
+                          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
     
+    properties[PROP_FILE_IS_HIDDEN] =
+        g_param_spec_boolean("file-is-hidden",
+                          "File is hidden",
+                          "Whether file is hidden",
+                          FALSE,
+                          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
+
     properties[PROP_FILE_SIZE] =
-        g_param_spec_uint64( "file-size",
+        g_param_spec_uint64("file-size",
                             "File size",
                             "File size in bytes",
-                            0,UINT64_MAX,0,
+                            0, UINT64_MAX, 0,
                             G_PARAM_READABLE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
-    
+
     g_object_class_install_properties(G_OBJECT_CLASS(class), NUM_PROPERTIES, properties);
 }
 
 DiyafmFileEntry *diyafm_file_entry_new(GFile *file)
 {
-    if(!file)
+    if (!file)
         return NULL;
-        
-    GFileType type = g_file_query_file_type (file,G_FILE_QUERY_INFO_NONE,NULL);
+
+    GFileType type = g_file_query_file_type(file, G_FILE_QUERY_INFO_NONE, NULL);
     // file does not exists
-    if(type == G_FILE_TYPE_UNKNOWN)
+    if (type == G_FILE_TYPE_UNKNOWN)
     {
         g_object_unref(file);
         return NULL;
     }
 
     return g_object_new(DIYAFM_FILE_ENTRY_TYPE,
-                "file", file,
-            NULL);
+                        "file", file,
+                        NULL);
 }

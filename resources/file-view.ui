@@ -100,6 +100,7 @@
             <property name="primary_icon_name">edit-find-symbolic</property>
             <property name="primary_icon_activatable">False</property>
             <property name="primary_icon_sensitive">False</property>
+            <signal name="activate" handler="diyafm_file_view_search_activate" object="DiyafmFileView" swapped="no"/>
           </object>
         </child>
       </object>
@@ -125,7 +126,9 @@
                 <property name="can_focus">True</property>
                 <property name="selection_mode">multiple</property>
                 <property name="activate_on_single_click">False</property>
+                <signal name="draw" handler="diyafm_file_entries_rendering" object="DiyafmFileView" swapped="yes"/>
                 <signal name="row-activated" handler="diyafm_file_view_row_active_cb" object="DiyafmFileView" swapped="yes"/>
+                <signal name="selected-rows-changed" handler="diyafm_file_view_row_select_changed" object="DiyafmFileView" swapped="no"/>
               </object>
             </child>
           </object>
@@ -162,10 +165,12 @@
           </packing>
         </child>
         <child>
-          <object class="GtkLabel">
+          <object class="GtkLabel" id="lbl_status">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
-            <property name="label" translatable="yes">label</property>
+            <property name="margin_right">5</property>
+            <property name="ellipsize">end</property>
+            <property name="xalign">1</property>
           </object>
           <packing>
             <property name="expand">True</property>
