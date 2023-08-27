@@ -28,6 +28,7 @@ struct _DiyafmFileView
     GtkWidget *lbl_status;
     // properties
     gboolean show_hidden;
+    gboolean search_mode;
     gchar *sort;
     GFile *dir;
 
@@ -44,6 +45,7 @@ enum
     PROP_SHOW_HIDDEN = 1,
     PROP_DIR,
     PROP_SORT,
+    PROP_SEARCH_MODE,
     NUM_PROPERTIES,
 };
 
@@ -172,6 +174,10 @@ static void diyafm_file_view_init(DiyafmFileView *view)
     g_action_map_add_action(G_ACTION_MAP(group), action);
     g_object_unref(action);
 
+    g_object_bind_property(view, "search-mode",
+                           view->searchbar, "search-mode-enabled",
+                           G_BINDING_BIDIRECTIONAL);
+
     gtk_widget_insert_action_group(GTK_WIDGET(view), "fileview", G_ACTION_GROUP(group));
     // action = g_settings_create_action(priv->settings, "show-words");
     // g_action_map_add_action(G_ACTION_MAP(win), action);
@@ -234,6 +240,7 @@ static gboolean diyafm_file_entries_rendering(GtkWidget *w, GdkEventExpose *even
                 DiyafmFileEntry *entry = diyafm_file_entry_new(file);
                 if (entry)
                 {
+                    g_object_set(entry,"search-mode", self->search_mode, NULL);
                     gtk_list_box_insert(GTK_LIST_BOX(self->file_list), GTK_WIDGET(entry), -1);
                     self->entries_stat.n_children++;
                     gboolean is_hidden;
@@ -315,14 +322,13 @@ static void diyafm_file_view_file_enum_thread(GTask *task, gpointer object, gpoi
     {
         g_usleep(100000); // 100ms
     }
-    printf("End thread\n");
+    printf("End file enumering thread\n");
 }
 
 static void diyafm_file_view_file_enum_finish (GObject *object,GAsyncResult *res,gpointer user_data)
 {
     DiyafmPromise * promise = (DiyafmPromise *) user_data;
     diyafm_promise_fulfill(promise);
-    printf("File enum Task finished\n");
 }
 
 static void diyafm_file_view_refresh(DiyafmFileView *self)
@@ -331,6 +337,15 @@ static void diyafm_file_view_refresh(DiyafmFileView *self)
     {
         return;
     }
+    gboolean search_enabled;
+    g_object_get(self->searchbar,"search-mode-enabled", &search_enabled, NULL);
+    if(search_enabled)
+    {
+        // disable the search
+        g_object_set(self->searchbar,"search-mode-enabled", FALSE,NULL);
+        return;
+    }
+
     g_async_queue_empty(self->file_queue, g_object_unref);
     gtk_container_forall(GTK_CONTAINER(self->file_list), diyafm_remove_list_item_cb, self->file_list);
     (void)memset(&self->entries_stat,0,sizeof(self->entries_stat));
@@ -430,6 +445,13 @@ static void diyafm_file_view_set_property(GObject *obj, guint property_id, const
     gchar *str;
     switch (property_id)
     {
+    case PROP_SEARCH_MODE:
+        self->search_mode = g_value_get_boolean(value);
+        if(!self->search_mode)
+        {
+            diyafm_file_view_refresh(self);
+        }
+        break;
     case PROP_SHOW_HIDDEN:
         self->show_hidden = g_value_get_boolean(value);
         if (!self->show_hidden)
@@ -478,6 +500,9 @@ static void diyafm_file_view_get_property(GObject *obj, guint property_id, GValu
     DiyafmFileView *self = DIYAFM_FILE_VIEW(obj);
     switch (property_id)
     {
+    case PROP_SEARCH_MODE:
+        g_value_set_boolean(value, self->search_mode);
+        break;
     case PROP_SHOW_HIDDEN:
         g_value_set_boolean(value, self->show_hidden);
         break;
@@ -601,9 +626,24 @@ static void diyafm_file_view_row_active_cb(gpointer object, GtkListBoxRow *row, 
     g_object_unref(file);
 }
 
-static void diyafm_file_view_search_consume_stdout(gchar *string, gpointer user_data)
+static void diyafm_file_view_search_consume_stdout(gchar *string, gpointer object)
 {
-    printf("Found: %s\n", string);
+    g_debug("Search found: [%s]", string);
+    DiyafmFileView *self = DIYAFM_FILE_VIEW(object);
+    guint len = g_async_queue_length(self->file_queue);
+    GFile *file = g_file_new_for_path(string);
+    if(file)
+    {
+        g_async_queue_push(self->file_queue, file);
+    }
+    else
+    {
+        g_warning("Invalid file: [%s]\n",string);
+    }
+    if (len == 0)
+    {
+        gtk_widget_queue_draw(self->file_list);
+    }
 }
 static void diyafm_file_view_search_consume_stderr(gchar *string, gpointer user_data)
 {
@@ -679,6 +719,13 @@ static void diyafm_file_view_search_thread(GTask *task, gpointer object, gpointe
     (void)close(process.stdout);
 }
 
+static void diyafm_file_view_search_finish(GObject *object,GAsyncResult *res,gpointer user_data)
+{
+    //DiyafmFileView *self = DIYAFM_FILE_VIEW(object);
+    DiyafmPromise *promise = (DiyafmPromise *)user_data;
+    diyafm_promise_fulfill(promise);
+}
+
 static void diyafm_file_view_search_activate(GtkEntry *entry, gpointer object)
 {
     DiyafmFileView *self = DIYAFM_FILE_VIEW(object);
@@ -686,9 +733,14 @@ static void diyafm_file_view_search_activate(GtkEntry *entry, gpointer object)
     const gchar *text = gtk_entry_get_text(entry);
     if (g_strcmp0(text, "") == 0)
         return;
-    // search the current folder using the find command
+    
+    g_async_queue_empty(self->file_queue, g_object_unref);
+    gtk_container_forall(GTK_CONTAINER(self->file_list), diyafm_remove_list_item_cb, self->file_list);
+    (void)memset(&self->entries_stat,0,sizeof(self->entries_stat));
 
-    GTask *task = g_task_new(self, NULL, NULL, NULL);
+    // search the current folder using the find command
+    DiyafmPromise *promise = diyafm_promise_declare(GTK_WIDGET(self));
+    GTask *task = g_task_new(self, NULL, diyafm_file_view_search_finish, promise);
     g_task_set_task_data(task, (gpointer)text, NULL);
     g_task_run_in_thread(task, diyafm_file_view_search_thread);
     g_object_unref(task);
@@ -717,6 +769,12 @@ static void diyafm_file_view_class_init(DiyafmFileViewClass *class)
                              FALSE,
                              G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS);
     /**do not use G_PARAM_EXPLICIT_NOTIFY, otherwise, the menu show-hidden checkout wont updated*/
+    properties[PROP_SEARCH_MODE] =
+        g_param_spec_boolean("search-mode",
+                             "Search mode",
+                             "Activate/deactivate search mode",
+                             FALSE,
+                             G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS);
     properties[PROP_SORT] =
         g_param_spec_string("sort",
                             "Sort file",
@@ -746,6 +804,7 @@ DiyafmFileView *diyafm_file_view_new()
         "show-hidden", FALSE,
         "dir", NULL,
         "sort", "type",
+        "search-mode", FALSE,
         NULL);
 
     return view;

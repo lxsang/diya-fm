@@ -111,7 +111,7 @@ static void diyafm_window_dispose(GObject *object)
     priv = diyafm_window_get_instance_private(win);
 
     g_clear_object(&priv->settings);
-    g_async_queue_empty(priv->pending_tasks,g_object_unref);
+    //g_async_queue_empty(priv->pending_tasks,g_object_unref);
     g_async_queue_unref(priv->pending_tasks);
 
     G_OBJECT_CLASS(diyafm_window_parent_class)->dispose(object);
@@ -197,10 +197,9 @@ static gboolean diyafm_promise_check (gpointer object)
     if(len == 0)
     {
         g_object_set(priv->spinner, "active", FALSE, NULL);
-        printf("loading finish\n");
         return FALSE;
     }
-    printf("pending...\n");
+    //printf("pending \n");
     return TRUE;
 }
 
@@ -219,7 +218,6 @@ DiyafmPromise * diyafm_promise_declare(GtkWidget *widget)
     if(len == 0)
     {
         // add idle task checking for promise
-        printf("loading\n");
         (void)g_idle_add( diyafm_promise_check, priv);
         g_object_set(priv->spinner, "active", TRUE, NULL);
     }

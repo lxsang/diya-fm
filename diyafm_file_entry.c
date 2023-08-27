@@ -12,7 +12,7 @@ struct _DiyafmFileEntry
 
     GtkWidget *file_icon;
     GtkWidget *lbl_file;
-    GtkWidget *lbl_date;
+    GtkWidget *lbl_detail;
     GtkWidget *lbl_size;
 
     // properties
@@ -21,6 +21,8 @@ struct _DiyafmFileEntry
     guint type;
     guint64 size;
     gchar *name;
+    gint64 stamp;
+    gboolean search_mode;
 };
 
 enum
@@ -30,6 +32,7 @@ enum
     PROP_FILE_SIZE,
     PROP_FILE_TYPE,
     PROP_FILE_IS_HIDDEN,
+    PROP_SEARCH_MODE,
     NUM_PROPERTIES,
 };
 
@@ -49,6 +52,22 @@ static void diyafm_file_entry_set_property(GObject *obj, guint property_id, cons
     gchar tmp[64];
     switch (property_id)
     {
+    case PROP_SEARCH_MODE:
+        self->search_mode = g_value_get_boolean(value);
+        if(self->search_mode)
+        {
+            gchar* path = g_file_get_path(self->file);
+            gtk_label_set_text(GTK_LABEL(self->lbl_detail), path);
+            gtk_widget_set_visible(GTK_WIDGET(self->lbl_detail), TRUE);
+            g_free(path);
+        }
+        else
+        {
+            timestr(self->stamp, tmp, sizeof(tmp), "Modified: %a, %d %b %Y %H:%M:%S GMT", 1);
+            gtk_label_set_text(GTK_LABEL(self->lbl_detail), tmp);
+            gtk_widget_set_visible(GTK_WIDGET(self->lbl_detail), TRUE);
+        }
+        break;
     case PROP_FILE:
         if (self->file)
         {
@@ -73,7 +92,7 @@ static void diyafm_file_entry_set_property(GObject *obj, guint property_id, cons
             self->type = FILE_ENTRY_TYPE_DIR;
         }
         // get size and modified date
-        gtk_widget_set_visible(GTK_WIDGET(self->lbl_date), FALSE);
+        gtk_widget_set_visible(GTK_WIDGET(self->lbl_detail), FALSE);
         gtk_widget_set_visible(GTK_WIDGET(self->lbl_size), FALSE);
         GFileInfo *info = g_file_query_info(self->file, "standard::*,time::*", G_FILE_QUERY_INFO_NONE, NULL, &error);
         if (info)
@@ -87,13 +106,10 @@ static void diyafm_file_entry_set_property(GObject *obj, guint property_id, cons
                 g_free(size_s);
             }
 
-            GDateTime *mtime = g_file_info_get_modification_date_time(info);
+            GDateTime* mtime = g_file_info_get_modification_date_time(info);
             if (mtime)
             {
-                gint64 stamp = g_date_time_to_unix(mtime);
-                timestr(stamp, tmp, sizeof(tmp), "Modified: %a, %d %b %Y %H:%M:%S GMT", 1);
-                gtk_label_set_text(GTK_LABEL(self->lbl_date), tmp);
-                gtk_widget_set_visible(GTK_WIDGET(self->lbl_date), TRUE);
+                self->stamp = g_date_time_to_unix(mtime);
                 // g_object_unref(mtime);
             }
             g_object_unref(info);
@@ -111,6 +127,9 @@ static void diyafm_file_entry_get_property(GObject *obj, guint property_id, GVal
     gchar *path;
     switch (property_id)
     {
+    case PROP_SEARCH_MODE:
+        g_value_set_boolean(value, self->search_mode);
+        break;
     case PROP_FILE:
         g_value_set_object(value, self->file);
         break;
@@ -163,7 +182,7 @@ static void diyafm_file_entry_class_init(DiyafmFileEntryClass *class)
     gtk_widget_class_set_template_from_resource(GTK_WIDGET_CLASS(class), "/app/iohub/dev/diyafm/resources/file-entry.ui");
     gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(class), DiyafmFileEntry, file_icon);
     gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(class), DiyafmFileEntry, lbl_file);
-    gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(class), DiyafmFileEntry, lbl_date);
+    gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(class), DiyafmFileEntry, lbl_detail);
     gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(class), DiyafmFileEntry, lbl_size);
 
     G_OBJECT_CLASS(class)->dispose = diyafm_file_entry_dispose;
@@ -198,6 +217,13 @@ static void diyafm_file_entry_class_init(DiyafmFileEntryClass *class)
                           FALSE,
                           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
 
+    properties[PROP_SEARCH_MODE] =
+        g_param_spec_boolean("search-mode",
+                             "Search mode",
+                             "Activate/deactivate search mode",
+                             FALSE,
+                             G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS);
+    
     properties[PROP_FILE_SIZE] =
         g_param_spec_uint64("file-size",
                             "File size",
@@ -223,5 +249,6 @@ DiyafmFileEntry *diyafm_file_entry_new(GFile *file)
 
     return g_object_new(DIYAFM_FILE_ENTRY_TYPE,
                         "file", file,
+                        "search-mode", FALSE,
                         NULL);
 }

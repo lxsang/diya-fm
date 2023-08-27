@@ -58,6 +58,11 @@ void diyafm_io_consume_lines(int fd,void (*cb)(char*,gpointer),gpointer user_dat
         }
         else if(status == G_IO_STATUS_NORMAL)
         {
+            guint len = strlen(str);
+            if(str[len - 1] == '\n')
+            {
+                str[len - 1] = '\0';
+            }
             cb(str, user_data);
             g_free(str);
         }
