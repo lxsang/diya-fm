@@ -187,6 +187,7 @@ static void diyafm_file_view_dispose(GObject *object)
     {
         g_object_unref(self->dir);
     }
+    g_async_queue_empty(self->file_queue,g_object_unref);
     g_async_queue_unref(self->file_queue);
     //g_async_queue_unref(self->error_queue);
    // g_object_unref(self->file_rendering_cancellable);
@@ -309,10 +310,18 @@ static void diyafm_file_view_file_enum_thread(GTask *task, gpointer object, gpoi
         g_free(path);
     }
     g_object_unref(dir);
+    // wait until the queue is all rendered
+    while(g_async_queue_length(self->file_queue) != 0)
+    {
+        g_usleep(100000); // 100ms
+    }
+    printf("End thread\n");
 }
 
 static void diyafm_file_view_file_enum_finish (GObject *object,GAsyncResult *res,gpointer user_data)
 {
+    DiyafmPromise * promise = (DiyafmPromise *) user_data;
+    diyafm_promise_fulfill(promise);
     printf("File enum Task finished\n");
 }
 
@@ -338,9 +347,9 @@ static void diyafm_file_view_refresh(DiyafmFileView *self)
     //diyafm_loading(GTK_WIDGET(self));
     GtkEntryBuffer *buffer = gtk_entry_get_buffer(GTK_ENTRY(self->path_entry));
     gtk_entry_buffer_set_text(buffer, path, -1);
-
+    DiyafmPromise * promise = diyafm_promise_declare(GTK_WIDGET(self));
     // file enumerating in separated thread
-    GTask *task = g_task_new(self, NULL, diyafm_file_view_file_enum_finish, NULL);
+    GTask *task = g_task_new(self, NULL, diyafm_file_view_file_enum_finish, promise);
     g_task_set_task_data(task, (gpointer)path, g_free);
     g_task_run_in_thread(task, diyafm_file_view_file_enum_thread);
     g_object_unref(task);

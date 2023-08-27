@@ -8,6 +8,11 @@
 #define SIZE_MB (1024u*SIZE_KB)
 #define SIZE_GB (1024u*SIZE_MB)
 
+#define diyafm_promise_new g_cancellable_new 
+#define diyafm_promise_fulfill g_cancellable_cancel
+#define diyafm_promise_is_fulfilled g_cancellable_is_cancelled
+typedef GCancellable DiyafmPromise;
+DiyafmPromise * diyafm_promise_declare();
 void timestr(time_t time, char* buf,int len,char* format, int gmt);
 void diyafm_notify(GtkWidget * widget, guint timeout, gchar* msg,...);
 void diyafm_loading(GtkWidget * widget);

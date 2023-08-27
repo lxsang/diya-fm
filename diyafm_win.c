@@ -27,7 +27,7 @@ struct _DiyafmWindowPrivate
     DiyafmFileView *file_view_left;
     DiyafmFileView *file_view_right;
 
-    gint loading_count;
+    GAsyncQueue * pending_tasks;
 };
 G_DEFINE_TYPE_WITH_PRIVATE(DiyafmWindow, diyafm_window, GTK_TYPE_APPLICATION_WINDOW);
 
@@ -59,7 +59,7 @@ static void diyafm_window_init(DiyafmWindow *win)
     GAction *action;
 
     priv = diyafm_window_get_instance_private(win);
-    priv->loading_count = 0;
+    priv->pending_tasks = g_async_queue_new();
     gtk_widget_init_template(GTK_WIDGET(win));
     priv->settings = g_settings_new("app.iohub.dev.diyafm");
 
@@ -111,6 +111,8 @@ static void diyafm_window_dispose(GObject *object)
     priv = diyafm_window_get_instance_private(win);
 
     g_clear_object(&priv->settings);
+    g_async_queue_empty(priv->pending_tasks,g_object_unref);
+    g_async_queue_unref(priv->pending_tasks);
 
     G_OBJECT_CLASS(diyafm_window_parent_class)->dispose(object);
 }
@@ -175,36 +177,52 @@ void diyafm_notify(GtkWidget *widget, guint timeout, gchar *fstring, ...)
     }
 }
 
-void diyafm_loading(GtkWidget *widget)
+static gboolean diyafm_promise_check (gpointer object)
 {
-    GtkWidget *view = gtk_widget_get_toplevel(widget);
-    if (!gtk_widget_is_toplevel(GTK_WIDGET(view)))
+    DiyafmWindowPrivate *priv = (DiyafmWindowPrivate*)object;
+    guint len = g_async_queue_length(priv->pending_tasks);
+    for (size_t i = 0; i < len; i++)
     {
-        return;
+        DiyafmPromise* promise = g_async_queue_pop(priv->pending_tasks);
+        if(diyafm_promise_is_fulfilled(promise))
+        {
+            g_object_unref(promise);
+        }
+        else
+        {
+            g_async_queue_push(priv->pending_tasks, promise);
+        }
     }
-    DiyafmWindow *win = DIYAFM_WINDOW(view);
-
-    DiyafmWindowPrivate *priv = diyafm_window_get_instance_private(win);
-    priv->loading_count++;
-    g_object_set(priv->spinner, "active", TRUE, NULL);
+    len = g_async_queue_length(priv->pending_tasks);
+    if(len == 0)
+    {
+        g_object_set(priv->spinner, "active", FALSE, NULL);
+        printf("loading finish\n");
+        return FALSE;
+    }
+    printf("pending...\n");
+    return TRUE;
 }
 
-void diyafm_loaded(GtkWidget *widget)
+DiyafmPromise * diyafm_promise_declare(GtkWidget *widget)
 {
     GtkWidget *view = gtk_widget_get_toplevel(widget);
-
-    if (!gtk_widget_is_toplevel(GTK_WIDGET(view)))
+    /*if (!gtk_widget_is_toplevel(GTK_WIDGET(view)))
     {
         return;
-    }
-
+    }*/
     DiyafmWindow *win = DIYAFM_WINDOW(view);
 
     DiyafmWindowPrivate *priv = diyafm_window_get_instance_private(win);
-    priv->loading_count--;
-    if (priv->loading_count <= 0)
+    DiyafmPromise * promise = diyafm_promise_new();
+    guint len = g_async_queue_length(priv->pending_tasks);
+    if(len == 0)
     {
-        priv->loading_count = 0;
-        g_object_set(priv->spinner, "active", FALSE, NULL);
+        // add idle task checking for promise
+        printf("loading\n");
+        (void)g_idle_add( diyafm_promise_check, priv);
+        g_object_set(priv->spinner, "active", TRUE, NULL);
     }
+    g_async_queue_push(priv->pending_tasks, promise);
+    return promise;
 }
